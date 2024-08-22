@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import re
+import json
 
 def extract_module_title(html_content):
     """
@@ -31,9 +32,7 @@ def extract_module_title(html_content):
 
     return None
 
-def process_html_file(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        html_content = f.read()
+def process_html_file(html_content):
     extracted_title = extract_module_title(html_content)
     if " - - " in extracted_title:
         extracted_title = extracted_title.replace(" - - ",".")
@@ -55,12 +54,46 @@ def get_course_list():
     result = requests.get(github_url)
     soup = BeautifulSoup(result.text, 'html.parser')
 
-    shfiles = soup.find_all(title=re.compile("\.sh$"))
+    module_titles = soup.find_all(title=re.compile("module-"))
 
-    filename = [ ]
-    for i in shfiles:
-            filename.append(i.extract().get_text())
+    all_titles, module_titles_to_check, modiwl_titles_to_check = [], [], []
+    for i in module_titles:
+        module_title = i.extract().get_text()
+        if module_title not in module_titles_to_check:
+            index_url = f'https://raw.githubusercontent.com/BC-IT-Services/net-zero-lms/main/{module_title}/index.html'
+            
+            result = requests.get(index_url)
+            index_soup = BeautifulSoup(result.text, 'html.parser')
+            title = process_html_file(str(index_soup))
+            all_titles.append(
+                {
+                    'title': title, 
+                    'slug': module_title
+                }
+            )
+        module_titles_to_check.append(module_title)
 
-    print(filename)
+    modiwl_titles = soup.find_all(title=re.compile("modiwl-"))
 
-get_course_list()
+    for i in modiwl_titles:
+        try:
+            modiwl_title = i.extract().get_text()
+        except:
+            pass
+        if modiwl_title not in modiwl_titles_to_check:
+            index_url = f'https://raw.githubusercontent.com/BC-IT-Services/net-zero-lms/main/{modiwl_title}/index.html'
+            
+            result = requests.get(index_url)
+            index_soup = BeautifulSoup(result.text, 'html.parser')
+            title = process_html_file(str(index_soup))
+            all_titles.append(
+                {
+                    'title': title, 
+                    'slug': modiwl_title
+                }
+            )
+        modiwl_titles_to_check.append(modiwl_title)
+
+    return all_titles
+
+print(get_course_list())
